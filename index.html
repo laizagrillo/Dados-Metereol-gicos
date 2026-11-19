@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monitoramento Meteorológico</title>
+  <style>
+    :root {
+      --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      --card-bg: rgba(255, 255, 255, 0.05);
+      --card-border: rgba(255, 255, 255, 0.1);
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --accent: #38bdf8;
+      --temp-warm: #fb923c;
+      --temp-cool: #38bdf8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+
+    body {
+      background: var(--bg-gradient);
+      color: var(--text-primary);
+      min-height: 100vh;
+      padding: 2rem 1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+      max-width: 600px;
+    }
+
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.025em;
+    }
+
+    header p {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+    }
+
+    .controls {
+      margin-bottom: 2rem;
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    button {
+      background-color: var(--accent);
+      color: #0f172a;
+      border: none;
+      padding: 0.6rem 1.2rem;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    button:active {
+      transform: scale(0.98);
+    }
+
+    .status {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1.5rem;
+      width: 100%;
+      max-width: 1100px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(56, 189, 248, 0.4);
+    }
+
+    .card-header {
+      margin-bottom: 1.25rem;
+    }
+
+    .location-name {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+      word-break: break-word;
+    }
+
+    .coordinates {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      font-family: monospace;
+    }
+
+    .temp-display {
+      display: flex;
+      align-items: baseline;
+      gap: 0.25rem;
+      margin-top: auto;
+    }
+
+    .temp-value {
+      font-size: 3rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .temp-unit {
+      font-size: 1.25rem;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .warm { color: var(--temp-warm); }
+    .cool { color: var(--temp-cool); }
+
+    .loader {
+      border: 3px solid rgba(255, 255, 255, 0.1);
+      border-top: 3px solid var(--accent);
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      animation: spin 1s linear infinite;
+      display: none;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .error-msg {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+      padding: 1rem;
+      border-radius: 12px;
+      text-align: center;
+      max-width: 500px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Dados Meteorológicos</h1>
+    <p>Monitoramento de temperatura atual em tempo real via Open-Meteo</p>
+  </header>
+
+  <div class="controls">
+    <button id="refreshBtn" onclick="carregarDados()">Atualizar Dados</button>
+    <div class="loader" id="loader"></div>
+    <span class="status" id="statusText"></span>
+  </div>
+
+  <div class="error-msg" id="errorBox"></div>
+  <main class="grid-container" id="cardsContainer"></main>
+
+  <script>
+    const ENDPOINT_PLANILHA = "https://docs.google.com/spreadsheets/d/1vW4hmVmkvqXEQFC14FMRw_rmg8EUFvf4e-IxR0ZJ0oM/export?format=csv";
+    const ENDPOINT_API = "https://api.open-meteo.com/v1/forecast";
+
+    // Parser de CSV que respeita valores entre aspas (ex: coordenadas com vírgula " -23,55 ")
+    function parseCSV(textoCSV) {
+      const linhas = textoCSV.trim().split(/\r?\n/);
+      if (linhas.length < 2) return [];
+
+      const dividirLinha = (linha) => {
+        const resultado = [];
+        let atual = '';
+        let entreAspas = false;
+
+        for (let i = 0; i < linha.length; i++) {
+          const char = linha[i];
+          if (char === '"') {
+            entreAspas = !entreAspas;
+          } else if (char === ',' && !entreAspas) {
+            resultado.push(atual.trim());
+            atual = '';
+          } else {
+            atual += char;
+          }
+        }
+        resultado.push(atual.trim());
+        return resultado;
+      };
+
+      const cabecalhos = dividirLinha(linhas[0]);
+      const idxLocal = cabecalhos.findIndex(c => c.toLowerCase().includes('nome do local'));
+      const idxLat = cabecalhos.findIndex(c => c.toLowerCase().includes('latitude'));
+      const idxLon = cabecalhos.findIndex(c => c.toLowerCase().includes('longitude'));
+
+      if (idxLocal === -1 || idxLat === -1 || idxLon === -1) {
+        throw new Error("Colunas 'Nome do local', 'Latitude' ou 'Longitude' não encontradas na planilha.");
+      }
+
+      const dados = [];
+      for (let i = 1; i < linhas.length; i++) {
+        if (!linhas[i].trim()) continue;
+        const colunas = dividirLinha(linhas[i]);
+
+        const nome = colunas[idxLocal];
+        // Garante conversão correta mesmo se o Google Sheets exportar com vírgula decimal
+        const lat = parseFloat((colunas[idxLat] || '').replace(',', '.'));
+        const lon = parseFloat((colunas[idxLon] || '').replace(',', '.'));
+
+        if (nome && !isNaN(lat) && !isNaN(lon)) {
+          dados.push({ nome, lat, lon });
+        }
+      }
+      return dados;
+    }
+
+    async function buscarTemperatura(local) {
+      const url = `${ENDPOINT_API}?latitude=${local.lat}&longitude=${local.lon}&current=temperature_2m`;
+      const resposta = await fetch(url);
+      if (!resposta.ok) throw new Error(`Erro HTTP ${resposta.status}`);
+      const json = await resposta.json();
+      return {
+        ...local,
+        temperatura: json.current?.temperature_2m ?? null,
+        unidade: json.current_units?.temperature_2m ?? '°C'
+      };
+    }
+
+    function criarCard(item) {
+      const card = document.createElement('article');
+      card.className = 'card';
+
+      const tempFormatada = item.temperatura !== null ? item.temperatura.toFixed(1) : '--';
+      const corClasse = item.temperatura >= 25 ? 'warm' : 'cool';
+
+      card.innerHTML = `
+        <div class="card-header">
+          <h2 class="location-name">${item.nome}</h2>
+          <span class="coordinates">Lat: ${item.lat.toFixed(4)} | Lon: ${item.lon.toFixed(4)}</span>
+        </div>
+        <div class="temp-display">
+          <span class="temp-value ${corClasse}">${tempFormatada}</span>
+          <span class="temp-unit">${item.unidade}</span>
+        </div>
+      `;
+      return card;
+    }
+
+    async function carregarDados() {
+      const container = document.getElementById('cardsContainer');
+      const loader = document.getElementById('loader');
+      const statusText = document.getElementById('statusText');
+      const errorBox = document.getElementById('errorBox');
+      const refreshBtn = document.getElementById('refreshBtn');
+
+      loader.style.display = 'block';
+      refreshBtn.disabled = true;
+      errorBox.style.display = 'none';
+      statusText.textContent = 'Lendo planilha...';
+
+      try {
+        // 1. Busca o CSV da planilha pública
+        const resPlanilha = await fetch(ENDPOINT_PLANILHA);
+        if (!resPlanilha.ok) throw new Error("Não foi possível acessar a planilha do Google Sheets.");
+        const textoCSV = await resPlanilha.text();
+
+        // 2. Extrai locais e coordenadas
+        const locais = parseCSV(textoCSV);
+        if (locais.length === 0) {
+          throw new Error("Nenhum local válido encontrado na planilha.");
+        }
+
+        statusText.textContent = `Consultando clima de ${locais.length} locais...`;
+
+        // 3. Consulta a API da Open-Meteo em paralelo para todos os locais
+        const resultados = await Promise.all(locais.map(buscarTemperatura));
+
+        // 4. Renderiza os cards na tela
+        container.innerHTML = '';
+        resultados.forEach(item => {
+          container.appendChild(criarCard(item));
+        });
+
+        const agora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        statusText.textContent = `Atualizado às ${agora}`;
+      } catch (erro) {
+        console.error(erro);
+        errorBox.textContent = `Erro: ${erro.message}`;
+        errorBox.style.display = 'block';
+        statusText.textContent = 'Falha na atualização';
+      } finally {
+        loader.style.display = 'none';
+        refreshBtn.disabled = false;
+      }
+    }
+
+    // Inicia o carregamento ao abrir a página
+    document.addEventListener('DOMContentLoaded', carregarDados);
+  </script>
+</body>
+</html>
