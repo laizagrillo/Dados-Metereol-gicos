@@ -3,17 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Monitoramento Meteorológico</title>
+  <title>Monitoramento Meteorológico Colaborativo</title>
   <style>
     :root {
       --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
       --card-bg: rgba(255, 255, 255, 0.05);
       --card-border: rgba(255, 255, 255, 0.1);
+      --input-bg: rgba(15, 23, 42, 0.6);
       --text-primary: #f8fafc;
       --text-secondary: #94a3b8;
       --accent: #38bdf8;
+      --accent-hover: #0ea5e9;
       --temp-warm: #fb923c;
       --temp-cool: #38bdf8;
+      --success: #4ade80;
     }
 
     * {
@@ -35,8 +38,8 @@
 
     header {
       text-align: center;
-      margin-bottom: 2.5rem;
-      max-width: 600px;
+      margin-bottom: 2rem;
+      max-width: 650px;
     }
 
     header h1 {
@@ -51,30 +54,157 @@
       font-size: 0.95rem;
     }
 
-    .controls {
-      margin-bottom: 2rem;
-      display: flex;
-      gap: 1rem;
-      align-items: center;
+    /* Seção do Formulário Responsivo */
+    .form-section {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(12px);
+      border-radius: 16px;
+      padding: 1.5rem;
+      width: 100%;
+      max-width: 1100px;
+      margin-bottom: 2.5rem;
     }
 
-    button {
+    .form-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .form-header h2 {
+      font-size: 1.15rem;
+      font-weight: 600;
+    }
+
+    .form-links {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      padding: 0.45rem 0.9rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.2s;
+    }
+
+    .btn-outline:hover {
+      background: rgba(56, 189, 248, 0.1);
+    }
+
+    .location-form {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr auto;
+      gap: 1rem;
+      align-items: end;
+    }
+
+    @media (max-width: 820px) {
+      .location-form {
+        grid-template-columns: 1fr 1fr;
+      }
+      .location-form .input-group:first-child,
+      .location-form button[type="submit"] {
+        grid-column: span 2;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .location-form {
+        grid-template-columns: 1fr;
+      }
+      .location-form .input-group:first-child,
+      .location-form button[type="submit"] {
+        grid-column: span 1;
+      }
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .input-group label {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .input-group input {
+      background: var(--input-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text-primary);
+      padding: 0.65rem 0.9rem;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .input-group input:focus {
+      border-color: var(--accent);
+    }
+
+    button.btn-primary {
       background-color: var(--accent);
       color: #0f172a;
       border: none;
-      padding: 0.6rem 1.2rem;
+      padding: 0.68rem 1.3rem;
       border-radius: 8px;
       font-weight: 600;
+      font-size: 0.95rem;
       cursor: pointer;
-      transition: opacity 0.2s, transform 0.1s;
+      transition: background-color 0.2s, transform 0.1s;
+      white-space: nowrap;
     }
 
-    button:hover {
-      opacity: 0.9;
+    button.btn-primary:hover {
+      background-color: var(--accent-hover);
     }
 
-    button:active {
+    button.btn-primary:active {
       transform: scale(0.98);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .form-feedback {
+      margin-top: 0.85rem;
+      font-size: 0.88rem;
+      display: none;
+    }
+
+    /* Barra de Controle dos Cards */
+    .controls {
+      width: 100%;
+      max-width: 1100px;
+      margin-bottom: 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .controls-right {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
     }
 
     .status {
@@ -150,8 +280,8 @@
       border: 3px solid rgba(255, 255, 255, 0.1);
       border-top: 3px solid var(--accent);
       border-radius: 50%;
-      width: 24px;
-      height: 24px;
+      width: 22px;
+      height: 22px;
       animation: spin 1s linear infinite;
       display: none;
     }
@@ -168,7 +298,9 @@
       padding: 1rem;
       border-radius: 12px;
       text-align: center;
-      max-width: 500px;
+      width: 100%;
+      max-width: 1100px;
+      margin-bottom: 1.5rem;
       display: none;
     }
   </style>
@@ -176,24 +308,153 @@
 <body>
 
   <header>
-    <h1>Dados Meteorológicos</h1>
-    <p>Monitoramento de temperatura atual em tempo real via Open-Meteo</p>
+    <h1>Monitoramento Meteorológico</h1>
+    <p>Cadastre um novo local abaixo para consultar e registrar a temperatura em tempo real</p>
   </header>
 
+  <!-- Formulário Integrado -->
+  <section class="form-section">
+    <div class="form-header">
+      <h2>Adicionar Novo Local</h2>
+      <div class="form-links">
+        <button type="button" class="btn-outline" onclick="usarMinhaLocalizacao()">📍 Usar meu GPS</button>
+        <a class="btn-outline" href="https://docs.google.com/forms/d/e/1FAIpQLSdET-U7VZb4aG2dRaFj71POvoi6Hw2CHL5FZkZeWQdSBDTkFA/viewform?usp=sharing&ouid=102341600086617251790" target="_blank" rel="noopener">Abrir no Google Forms ↗</a>
+      </div>
+    </div>
+
+    <form class="location-form" id="cadastroForm" onsubmit="enviarParaPlanilha(event)">
+      <div class="input-group">
+        <label for="nomeLocal">Nome do local</label>
+        <input type="text" id="nomeLocal" placeholder="Ex: Campinas - SP" required>
+      </div>
+
+      <div class="input-group">
+        <label for="latitude">Latitude</label>
+        <input type="text" id="latitude" placeholder="Ex: -22.9099" required>
+      </div>
+
+      <div class="input-group">
+        <label for="longitude">Longitude</label>
+        <input type="text" id="longitude" placeholder="Ex: -47.0626" required>
+      </div>
+
+      <button type="submit" class="btn-primary" id="submitBtn">Adicionar & Consultar</button>
+    </form>
+
+    <div class="form-feedback" id="formFeedback"></div>
+  </section>
+
+  <!-- Controles e Lista de Resultados -->
   <div class="controls">
-    <button id="refreshBtn" onclick="carregarDados()">Atualizar Dados</button>
-    <div class="loader" id="loader"></div>
-    <span class="status" id="statusText"></span>
+    <h3>Locais Monitorados</h3>
+    <div class="controls-right">
+      <div class="loader" id="loader"></div>
+      <span class="status" id="statusText"></span>
+      <button type="button" class="btn-outline" id="refreshBtn" onclick="carregarDados()">↻ Atualizar Lista</button>
+    </div>
   </div>
 
   <div class="error-msg" id="errorBox"></div>
   <main class="grid-container" id="cardsContainer"></main>
 
   <script>
+    // Endpoints da Planilha e da API Open-Meteo
     const ENDPOINT_PLANILHA = "https://docs.google.com/spreadsheets/d/1vW4hmVmkvqXEQFC14FMRw_rmg8EUFvf4e-IxR0ZJ0oM/export?format=csv";
     const ENDPOINT_API = "https://api.open-meteo.com/v1/forecast";
 
-    // Parser de CSV que respeita valores entre aspas (ex: coordenadas com vírgula " -23,55 ")
+    // Endpoint de envio do seu Google Forms
+    const GOOGLE_FORM_ACTION = "https://docs.google.com/forms/d/e/1FAIpQLSdET-U7VZb4aG2dRaFj71POvoi6Hw2CHL5FZkZeWQdSBDTkFA/formResponse";
+
+    // ⚠️ IMPORTANTE: Substitua os 3 valores 'entry.XXXXXXXXX' abaixo pelos IDs reais dos campos do seu Google Forms
+    const FORM_ENTRIES = {
+      nome: "entry.111111111",      // ID do campo "Nome do local"
+      latitude: "entry.222222222",  // ID do campo "Latitude"
+      longitude: "entry.333333333"  // ID do campo "Longitude"
+    };
+
+    // Preenche Latitude e Longitude automaticamente usando o GPS do navegador
+    function usarMinhaLocalizacao() {
+      const feedback = document.getElementById('formFeedback');
+      if (!navigator.geolocation) {
+        mostrarFeedback("Seu navegador não suporta geolocalização.", "#fca5a5");
+        return;
+      }
+
+      mostrarFeedback("Obtendo coordenadas...", "#38bdf8");
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          document.getElementById('latitude').value = pos.coords.latitude.toFixed(4);
+          document.getElementById('longitude').value = pos.coords.longitude.toFixed(4);
+          mostrarFeedback("Coordenadas preenchidas! Digite o nome do local e clique em Adicionar.", "#4ade80");
+        },
+        () => {
+          mostrarFeedback("Não foi possível acessar sua localização. Verifique as permissões.", "#fca5a5");
+        }
+      );
+    }
+
+    function mostrarFeedback(mensagem, cor) {
+      const feedback = document.getElementById('formFeedback');
+      feedback.textContent = mensagem;
+      feedback.style.color = cor;
+      feedback.style.display = 'block';
+    }
+
+    // Envia os dados do formulário diretamente para o Google Forms (que salva no Google Sheets)
+    async function enviarParaPlanilha(event) {
+      event.preventDefault();
+
+      const nome = document.getElementById('nomeLocal').value.trim();
+      const latRaw = document.getElementById('latitude').value.trim().replace(',', '.');
+      const lonRaw = document.getElementById('longitude').value.trim().replace(',', '.');
+
+      const lat = parseFloat(latRaw);
+      const lon = parseFloat(lonRaw);
+
+      if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+        mostrarFeedback("Por favor, insira valores numéricos válidos para Latitude (-90 a 90) e Longitude (-180 a 180).", "#fca5a5");
+        return;
+      }
+
+      const submitBtn = document.getElementById('submitBtn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Enviando...";
+
+      try {
+        // Monta o payload no formato esperado pelo Google Forms
+        const formData = new URLSearchParams();
+        formData.append(FORM_ENTRIES.nome, nome);
+        formData.append(FORM_ENTRIES.latitude, latRaw);
+        formData.append(FORM_ENTRIES.longitude, lonRaw);
+
+        // O modo 'no-cors' permite enviar o POST ao Google Forms sem bloqueio do navegador
+        await fetch(GOOGLE_FORM_ACTION, {
+          method: "POST",
+          mode: "no-cors",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded"
+          },
+          body: formData.toString()
+        });
+
+        mostrarFeedback(`"${nome}" enviado! Atualizando dados da planilha...`, "#4ade80");
+        document.getElementById('cadastroForm').reset();
+
+        // Aguarda 1.8s para o Google Sheets registrar a nova linha do Forms e recarrega os cards
+        setTimeout(() => {
+          carregarDados();
+        }, 1800);
+
+      } catch (erro) {
+        console.error(erro);
+        mostrarFeedback("Erro ao enviar os dados. Tente novamente ou use o link do Google Forms.", "#fca5a5");
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Adicionar & Consultar";
+      }
+    }
+
+    // Parser de CSV que respeita valores entre aspas
     function parseCSV(textoCSV) {
       const linhas = textoCSV.trim().split(/\r?\n/);
       if (linhas.length < 2) return [];
@@ -233,7 +494,6 @@
         const colunas = dividirLinha(linhas[i]);
 
         const nome = colunas[idxLocal];
-        // Garante conversão correta mesmo se o Google Sheets exportar com vírgula decimal
         const lat = parseFloat((colunas[idxLat] || '').replace(',', '.'));
         const lon = parseFloat((colunas[idxLon] || '').replace(',', '.'));
 
@@ -241,7 +501,8 @@
           dados.push({ nome, lat, lon });
         }
       }
-      return dados;
+      // Inverte a ordem para mostrar os locais adicionados mais recentemente no topo
+      return dados.reverse();
     }
 
     async function buscarTemperatura(local) {
@@ -286,15 +547,15 @@
       loader.style.display = 'block';
       refreshBtn.disabled = true;
       errorBox.style.display = 'none';
-      statusText.textContent = 'Lendo planilha...';
+      statusText.textContent = 'Sincronizando planilha...';
 
       try {
-        // 1. Busca o CSV da planilha pública
-        const resPlanilha = await fetch(ENDPOINT_PLANILHA);
+        // Adiciona timestamp na URL para evitar que o navegador use cache antigo do CSV
+        const urlSemCache = `${ENDPOINT_PLANILHA}&t=${Date.now()}`;
+        const resPlanilha = await fetch(urlSemCache);
         if (!resPlanilha.ok) throw new Error("Não foi possível acessar a planilha do Google Sheets.");
         const textoCSV = await resPlanilha.text();
 
-        // 2. Extrai locais e coordenadas
         const locais = parseCSV(textoCSV);
         if (locais.length === 0) {
           throw new Error("Nenhum local válido encontrado na planilha.");
@@ -302,10 +563,8 @@
 
         statusText.textContent = `Consultando clima de ${locais.length} locais...`;
 
-        // 3. Consulta a API da Open-Meteo em paralelo para todos os locais
         const resultados = await Promise.all(locais.map(buscarTemperatura));
 
-        // 4. Renderiza os cards na tela
         container.innerHTML = '';
         resultados.forEach(item => {
           container.appendChild(criarCard(item));
@@ -324,7 +583,6 @@
       }
     }
 
-    // Inicia o carregamento ao abrir a página
     document.addEventListener('DOMContentLoaded', carregarDados);
   </script>
 </body>
