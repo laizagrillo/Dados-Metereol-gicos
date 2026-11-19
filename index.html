@@ -54,7 +54,6 @@
       font-size: 0.95rem;
     }
 
-    /* Seção do Formulário Responsivo */
     .form-section {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
@@ -189,7 +188,6 @@
       display: none;
     }
 
-    /* Barra de Controle dos Cards */
     .controls {
       width: 100%;
       max-width: 1100px;
@@ -312,7 +310,10 @@
     <p>Cadastre um novo local abaixo para consultar e registrar a temperatura em tempo real</p>
   </header>
 
-  <!-- Formulário Integrado -->
+  <!-- Iframe oculto que recebe o envio nativo do Google Forms sem recarregar a página -->
+  <iframe name="hidden_iframe" id="hidden_iframe" style="display:none;" onload="aoConcluirEnvioIframe()"></iframe>
+
+  <!-- Formulário conectado diretamente ao endpoint formResponse via POST nativo -->
   <section class="form-section">
     <div class="form-header">
       <h2>Adicionar Novo Local</h2>
@@ -322,20 +323,27 @@
       </div>
     </div>
 
-    <form class="location-form" id="cadastroForm" onsubmit="enviarParaPlanilha(event)">
+    <form 
+      class="location-form" 
+      id="cadastroForm" 
+      action="https://docs.google.com/forms/d/e/1FAIpQLSdET-U7VZb4aG2dRaFj71POvoi6Hw2CHL5FZkZeWQdSBDTkFA/formResponse" 
+      method="POST" 
+      target="hidden_iframe"
+      onsubmit="return prepararEnvio(event)"
+    >
       <div class="input-group">
         <label for="nomeLocal">Nome do local</label>
-        <input type="text" id="nomeLocal" placeholder="Ex: Campinas - SP" required>
+        <input type="text" id="nomeLocal" name="entry.1437313373" placeholder="Ex: Campinas - SP" required>
       </div>
 
       <div class="input-group">
         <label for="latitude">Latitude</label>
-        <input type="text" id="latitude" placeholder="Ex: -22.9099" required>
+        <input type="text" id="latitude" name="entry.1779396836" placeholder="Ex: -22.9099" required>
       </div>
 
       <div class="input-group">
         <label for="longitude">Longitude</label>
-        <input type="text" id="longitude" placeholder="Ex: -47.0626" required>
+        <input type="text" id="longitude" name="entry.1985115626" placeholder="Ex: -47.0626" required>
       </div>
 
       <button type="submit" class="btn-primary" id="submitBtn">Adicionar & Consultar</button>
@@ -358,23 +366,13 @@
   <main class="grid-container" id="cardsContainer"></main>
 
   <script>
-    // Endpoints da Planilha e da API Open-Meteo
-    const ENDPOINT_PLANILHA = "https://docs.google.com/spreadsheets/d/1vW4hmVmkvqXEQFC14FMRw_rmg8EUFvf4e-IxR0ZJ0oM/export?format=csv";
+    const ENDPOINT_PLANILHA = "https://docs.google.com/spreadsheets/d/1vW4hmVmkvqXEQFC14FMRw_rmg8EUFvf4e-IxR0ZJ0oM/gviz/tq?tqx=out:csv";
     const ENDPOINT_API = "https://api.open-meteo.com/v1/forecast";
 
-  
-    const GOOGLE_FORM_ACTION = "https://docs.google.com/forms/d/e/1FAIpQLSdET-U7VZb4aG2dRaFj71POvoi6Hw2CHL5FZkZeWQdSBDTkFA/formResponse";
+    let envioEmAndamento = false;
+    let ultimoLocalEnviado = null;
 
-   
-    const FORM_ENTRIES = {
-      nome: "entry.14373133731",      // ID do campo "Nome do local"
-      latitude: "entry.1779396836",  // ID do campo "Latitude"
-      longitude: "entry.1985115626"  // ID do campo "Longitude"
-    };
-
-    // Preenche Latitude e Longitude automaticamente usando o GPS do navegador
     function usarMinhaLocalizacao() {
-      const feedback = document.getElementById('formFeedback');
       if (!navigator.geolocation) {
         mostrarFeedback("Seu navegador não suporta geolocalização.", "#fca5a5");
         return;
@@ -400,61 +398,66 @@
       feedback.style.display = 'block';
     }
 
-    // Envia os dados do formulário diretamente para o Google Forms (que salva no Google Sheets)
-    async function enviarParaPlanilha(event) {
-      event.preventDefault();
-
+    // Valida os campos e libera o submit nativo do navegador para o iframe oculto
+    function prepararEnvio(event) {
       const nome = document.getElementById('nomeLocal').value.trim();
-      const latRaw = document.getElementById('latitude').value.trim().replace(',', '.');
-      const lonRaw = document.getElementById('longitude').value.trim().replace(',', '.');
+      const latInput = document.getElementById('latitude');
+      const lonInput = document.getElementById('longitude');
+
+      // Normaliza vírgula para ponto antes de enviar ao Google Forms
+      const latRaw = latInput.value.trim().replace(',', '.');
+      const lonRaw = lonInput.value.trim().replace(',', '.');
 
       const lat = parseFloat(latRaw);
       const lon = parseFloat(lonRaw);
 
       if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+        event.preventDefault();
         mostrarFeedback("Por favor, insira valores numéricos válidos para Latitude (-90 a 90) e Longitude (-180 a 180).", "#fca5a5");
-        return;
+        return false;
       }
+
+      latInput.value = latRaw;
+      lonInput.value = lonRaw;
+
+      envioEmAndamento = true;
+      ultimoLocalEnviado = { nome, lat, lon };
 
       const submitBtn = document.getElementById('submitBtn');
       submitBtn.disabled = true;
-      submitBtn.textContent = "Enviando...";
+      submitBtn.textContent = "Registrando...";
+      mostrarFeedback("Enviando para o Google Forms...", "#38bdf8");
+
+      return true; // Permite que o navegador envie o formulário nativamente para o hidden_iframe
+    }
+
+    // Disparado automaticamente assim que o Google Forms responde dentro do iframe oculto
+    async function aoConcluirEnvioIframe() {
+      if (!envioEmAndamento || !ultimoLocalEnviado) return;
+      envioEmAndamento = false;
+
+      const submitBtn = document.getElementById('submitBtn');
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Adicionar & Consultar";
 
       try {
-        // Monta o payload no formato esperado pelo Google Forms
-        const formData = new URLSearchParams();
-        formData.append(FORM_ENTRIES.nome, nome);
-        formData.append(FORM_ENTRIES.latitude, latRaw);
-        formData.append(FORM_ENTRIES.longitude, lonRaw);
+        // Mostra o card imediatamente na tela consultando a Open-Meteo
+        const novoLocalComClima = await buscarTemperatura(ultimoLocalEnviado);
+        const container = document.getElementById('cardsContainer');
+        container.prepend(criarCard(novoLocalComClima));
 
-        // O modo 'no-cors' permite enviar o POST ao Google Forms sem bloqueio do navegador
-        await fetch(GOOGLE_FORM_ACTION, {
-          method: "POST",
-          mode: "no-cors",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded"
-          },
-          body: formData.toString()
-        });
-
-        mostrarFeedback(`"${nome}" enviado! Atualizando dados da planilha...`, "#4ade80");
+        mostrarFeedback(`"${ultimoLocalEnviado.nome}" registrado na planilha com sucesso!`, "#4ade80");
         document.getElementById('cadastroForm').reset();
 
-        // Aguarda 1.8s para o Google Sheets registrar a nova linha do Forms e recarrega os cards
+        // Sincroniza a lista completa com a planilha após 2.5 segundos
         setTimeout(() => {
           carregarDados();
-        }, 1800);
-
+        }, 2500);
       } catch (erro) {
         console.error(erro);
-        mostrarFeedback("Erro ao enviar os dados. Tente novamente ou use o link do Google Forms.", "#fca5a5");
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = "Adicionar & Consultar";
       }
     }
 
-    // Parser de CSV que respeita valores entre aspas
     function parseCSV(textoCSV) {
       const linhas = textoCSV.trim().split(/\r?\n/);
       if (linhas.length < 2) return [];
@@ -501,7 +504,6 @@
           dados.push({ nome, lat, lon });
         }
       }
-      // Inverte a ordem para mostrar os locais adicionados mais recentemente no topo
       return dados.reverse();
     }
 
@@ -550,7 +552,6 @@
       statusText.textContent = 'Sincronizando planilha...';
 
       try {
-        // Adiciona timestamp na URL para evitar que o navegador use cache antigo do CSV
         const urlSemCache = `${ENDPOINT_PLANILHA}&t=${Date.now()}`;
         const resPlanilha = await fetch(urlSemCache);
         if (!resPlanilha.ok) throw new Error("Não foi possível acessar a planilha do Google Sheets.");
